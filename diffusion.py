@@ -3,16 +3,17 @@ import numpy as np
 from tqdm import tqdm
 import torch.nn as nn
 import torch.nn.functional as F
-from unet import UNet
+from unet2 import UNet
 
 class Diffusion:
     def __init__(self):
         # model params
-        self.model = UNet()
+        self.model = UNet(dim=256, channels=3, dim_mults=(1, 2, 4,))
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model.to(self.device)
 
         # input sizes
-        self.batch_size = 64
+        self.batch_size = 4
         self.channels = 3
         self.image_size = 256
 
@@ -27,7 +28,7 @@ class Diffusion:
         self.sqrt_one_minus_alphas_cumprod = torch.sqrt(1. - self.alphas_cumprod)
         self.posterior_variance = self.betas * (1. - self.alphas_cumprod_prev) / (1. - self.alphas_cumprod)
 
-    def get_beta_schedule(self, timesteps, schedule="linear"):
+    def get_beta_schedule(self, timesteps, schedule="cosine"):
         if schedule == "linear": # linear schedule
             start = 0.0001
             end = 0.02
@@ -35,7 +36,7 @@ class Diffusion:
         else: # cosine schedule
             steps = timesteps + 1
             x = torch.linspace(0, timesteps, steps)
-            alphas_cumprod = torch.cos(((x / timesteps) + s) / (1 + s) * torch.pi * 0.5) ** 2
+            alphas_cumprod = torch.cos(((x / timesteps) + steps) / (1 + steps) * torch.pi * 0.5) ** 2
             alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
             betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
             return torch.clip(betas, 0.0001, 0.9999)
@@ -46,9 +47,9 @@ class Diffusion:
         """
         batch_size = t.shape[0]
         out = vals.gather(-1, t.cpu())
-        return out.reshape(batch_size, *((1, ) * (len(x_shape) - 1))).to(t.device)
+        return out.reshape(batch_size, *((1, ) * (len(x_shape) - 1))).to(self.device)
     
-    def q_sample(self, x_0, t):
+    def q_sample(self, x_0, t, noise=None):
         """
         Given image x_0 return noisy version x_t (batched)
 
@@ -75,7 +76,7 @@ class Diffusion:
         """
         
         x_noisy, noise = self.q_sample(x_0, t)
-        predicted_noise = self.unet(x_noisy, t)
+        predicted_noise = self.model(x_noisy, t)
 
         if loss_type == "l2":
             loss = F.mse_loss(noise, predicted_noise)
@@ -90,7 +91,7 @@ class Diffusion:
         sqrt_one_minus_alphas_cumprod_t = self._extract(self.sqrt_one_minus_alphas_cumprod, t, x.shape)
         sqrt_recip_alphas_t = self._extract(self.sqrt_recip_alphas, t, x.shape)
 
-        model_mean = sqrt_recip_alphas_t * (x - betas_t * self.unet(x, t) / sqrt_one_minus_alphas_cumprod_t)
+        model_mean = sqrt_recip_alphas_t * (x - betas_t * self.model(x, t) / sqrt_one_minus_alphas_cumprod_t)
 
         if t_index == 0:
             return model_mean

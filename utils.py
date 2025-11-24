@@ -10,7 +10,6 @@ train_loader, test_loader = load_dataloaders()
 batch = next(iter(train_loader))
 img = batch[0]  # shape C,H,W in [-1,1]
 
-
 def show_image(img, output="test"):
     # img: C,H,W or H,W,C, float [-1,1] or [0,1] or uint8
 

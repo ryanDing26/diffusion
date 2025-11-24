@@ -26,7 +26,7 @@ class ResidualBlock(nn.Module):
         self.conv2 = nn.Conv2d(out_ch, out_ch, 3, padding=1)
         self.time_mlp = nn.Linear(time_emb_dim, out_ch)
         self.dropout = nn.Dropout(dropout)
-        self.residual_conv = nn.Conv2d(in_ch, out_ch, 3) if in_ch != out_ch else nn.Conv2d(in_ch, out_ch, 1)
+        self.residual_conv = nn.Conv2d(in_ch, out_ch, 3, padding=1) if in_ch != out_ch else nn.Conv2d(in_ch, out_ch, 1)
         self.nonlinearity = nn.SiLU()
 
     def forward(self, x, t_emb):
@@ -175,39 +175,39 @@ class UNet(nn.Module):
                 nn.init.zeros_(module.conv2.weight)
                 nn.init.zeros_(module.conv2.bias)
 
-    def forward(self, x, t):
-        # Time embedding
-        t_emb = self.time_mlp(t)
+    # def forward(self, x, t):
+    #     # Time embedding
+    #     t_emb = self.time_mlp(t)
 
-        # Input conv
-        h = self.conv_in(x)
+    #     # Input conv
+    #     h = self.conv_in(x)
 
-        # Down path
-        hs = []
-        ds_idx = 0
-        for i, block in enumerate(self.down_blocks):
-            h = block(h, t_emb)
-            if i % self.num_res_blocks == self.num_res_blocks - 1 and ds_idx < len(self.downsamples):
-                hs.append(h)
-                h = self.downsamples[ds_idx](h)
-                ds_idx += 1
-            else:
-                hs.append(h)
+    #     # Down path
+    #     hs = []
+    #     ds_idx = 0
+    #     for i, block in enumerate(self.down_blocks):
+    #         h = block(h, t_emb)
+    #         if i % self.num_res_blocks == self.num_res_blocks - 1 and ds_idx < len(self.downsamples):
+    #             hs.append(h)
+    #             h = self.downsamples[ds_idx](h)
+    #             ds_idx += 1
+    #         else:
+    #             hs.append(h)
 
-        # Middle
-        h = self.mid_block1(h, t_emb)
-        h = self.mid_attn(h)
-        h = self.mid_block2(h, t_emb)
+    #     # Middle
+    #     h = self.mid_block1(h, t_emb)
+    #     h = self.mid_attn(h)
+    #     h = self.mid_block2(h, t_emb)
 
-        # Up path
-        us_idx = 0
-        for i, block in enumerate(self.up_blocks):
-            res = hs.pop()
-            h = torch.cat([h, res], dim=1)
-            h = block(h, t_emb)
-            if i % (self.num_res_blocks + 1) == self.num_res_blocks and us_idx < len(self.upsamples):
-                h = self.upsamples[us_idx](h)
-                us_idx += 1
+    #     # Up path
+    #     us_idx = 0
+    #     for i, block in enumerate(self.up_blocks):
+    #         res = hs.pop()
+    #         h = torch.cat([h, res], dim=1)
+    #         h = block(h, t_emb)
+    #         if i % (self.num_res_blocks + 1) == self.num_res_blocks and us_idx < len(self.upsamples):
+    #             h = self.upsamples[us_idx](h)
+    #             us_idx += 1
 
-        # Output
-        return self.conv_out(h)
+    #     # Output
+    #     return self.conv_out(h)
