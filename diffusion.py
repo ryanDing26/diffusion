@@ -31,17 +31,18 @@ class Diffusion:
         self.sqrt_recip_alphas = torch.sqrt(1.0 / self.alphas)
         self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
         self.sqrt_one_minus_alphas_cumprod = torch.sqrt(1. - self.alphas_cumprod)
-        self.posterior_variance = self.betas * (1. - self.alphas_cumprod_prev) / (1. - self.alphas_cumprod)
+        self.posterior_variance = self.betas * (1. - self.alphas_cumprod_prev) / (1. - self.alphas_cumprod + 1e-8)
 
     def get_beta_schedule(self, timesteps, schedule="cosine"):
         if schedule == "linear": # linear schedule
             start = 0.0001
             end = 0.02
             return torch.linspace(start, end, timesteps)
-        else: # cosine schedule
+        else: # cosine schedule (Improved DDPM: https://arxiv.org/abs/2102.09672)
+            s = 0.008  # small offset to prevent beta from being too small near t=0
             steps = timesteps + 1
             x = torch.linspace(0, timesteps, steps)
-            alphas_cumprod = torch.cos(((x / timesteps) + steps) / (1 + steps) * torch.pi * 0.5) ** 2
+            alphas_cumprod = torch.cos(((x / timesteps) + s) / (1 + s) * torch.pi * 0.5) ** 2
             alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
             betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
             return torch.clip(betas, 0.0001, 0.9999)
@@ -98,11 +99,11 @@ class Diffusion:
         model_mean = sqrt_recip_alphas_t * (x - betas_t * self.model(x, t) / sqrt_one_minus_alphas_cumprod_t)
 
         if t_index == 0:
-            return model_mean
+            return torch.clamp(model_mean, -1.0, 1.0)
         else:
             posterior_variance_t = self._extract(self.posterior_variance, t, x.shape)
             noise = torch.randn_like(x)
-            return model_mean + torch.sqrt(posterior_variance_t) * noise
+            return torch.clamp(model_mean + torch.sqrt(posterior_variance_t) * noise, -1.0, 1.0)
 
     @torch.no_grad()
     def p_sample_loop(self, shape):
