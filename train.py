@@ -33,6 +33,8 @@ for epoch in range(int(epochs)):
         scaler.scale(loss).backward()
 
         if (step + 1) % ACCUMULATION_STEPS == 0:
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
@@ -55,6 +57,8 @@ for epoch in range(int(epochs)):
         #     print(f"Saved checkpoint at epoch {epoch}, step {step}")
     
     if (step + 1) % ACCUMULATION_STEPS != 0:
+        scaler.unscale_(optimizer)
+        torch.nn.utils.clip_grad_norm_(model.model.parameters(), max_norm=1.0)
         scaler.step(optimizer)
         scaler.update()
         optimizer.zero_grad()

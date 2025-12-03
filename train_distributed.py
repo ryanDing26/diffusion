@@ -92,6 +92,8 @@ def main():
             scaler.scale(loss).backward()
 
             if (step + 1) % ACCUMULATION_STEPS == 0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.model.parameters(), max_norm=1.0)
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
@@ -103,6 +105,8 @@ def main():
 
         # Handle leftover gradients
         if (step + 1) % ACCUMULATION_STEPS != 0:
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
