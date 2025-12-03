@@ -1,2 +1,5 @@
 __pycache__
 train.sh
+checkpoint_epoch0_1k.pt
+*.err
+*.out

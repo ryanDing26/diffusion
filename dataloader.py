@@ -1,20 +1,23 @@
 import torch
 import numpy as np
+from dataset import TissueDataset
 from torchvision import transforms
 from torch.utils.data import DataLoader, random_split
-from dataset import TissueDataset
+from torch.utils.data.distributed import DistributedSampler
 
+GPU = ""
 IMG_SIZE = 256
-BATCH_SIZE = 4
+BATCH_SIZE = 4 if GPU == "3090" else 8
 
-def load_dataloaders():
+def load_dataloaders(distributed=False):
     data_transforms = [
         transforms.Resize((IMG_SIZE, IMG_SIZE)), # resize to 256x256
         transforms.RandomHorizontalFlip(), # random horizontal flipping
         transforms.ToTensor(), # scales to [0, 1]
         transforms.Lambda(lambda t: (t * 2) - 1) # scale between [-1, 1]
     ]
-
+    
+    
     data_transform = transforms.Compose(data_transforms)
 
     dataset = TissueDataset(
@@ -22,8 +25,13 @@ def load_dataloaders():
         transform=data_transform,
         tissue_filter=["Ovary"],
     )
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
-    return dataloader
+
+    sampler = None
+    if distributed:
+        sampler = DistributedSampler(dataset)
+
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=(sampler is None), sampler=sampler, num_workers=0)
+    return dataloader, sampler
     # # Compute split sizes
     # total_len = len(dataset)
     # train_len = int(total_len * 0.8)

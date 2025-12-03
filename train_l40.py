@@ -5,11 +5,11 @@ from diffusion import Diffusion
 from dataloader import load_dataloaders
 from torch.cuda.amp import GradScaler, autocast
 
-ACCUMULATION_STEPS = 16
+ACCUMULATION_STEPS = 8
 
 scaler = GradScaler()
 dataloader = load_dataloaders()
-model = Diffusion(timesteps=1000) # batch size 16, channels 3, image size 256
+model = Diffusion(timesteps=100, batch_size=8) # batch size 16, channels 3, image size 256
 optimizer = Adam(model.model.parameters(), lr=1e-4)
 epochs = 1e10 # this will essentially keep running forever
 
@@ -20,7 +20,6 @@ for epoch in range(int(epochs)):
     accumulated_loss = 0.0
     for step, batch in enumerate(pbar):
         batch = batch.to(model.device) # [16, 3, 256, 256] batch
-
         # sample t ~ U(0, T) for each sample
         t = torch.randint(0, model.timesteps, (batch.shape[0],), device=model.device).long()
 
@@ -64,5 +63,5 @@ for epoch in range(int(epochs)):
         "optimizer_state_dict": optimizer.state_dict(),
         "epoch": epoch,
     }
-    torch.save(checkpoint, f"checkpoint_epoch{epoch}_1k.pt")
+    torch.save(checkpoint, f"checkpoint_epoch{epoch}_1k_l40.pt")
     print(f"Saved checkpoint at epoch {epoch}")

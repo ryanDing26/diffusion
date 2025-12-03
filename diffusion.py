@@ -6,19 +6,24 @@ import torch.nn.functional as F
 from unet2 import UNet
 
 class Diffusion:
-    def __init__(self):
+    def __init__(self, timesteps, batch_size=4, device=None):
         # model params
         self.model = UNet(dim=256, channels=3, dim_mults=(1, 2, 4,))
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        if device is None:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
+
         self.model.to(self.device)
 
         # input sizes
-        self.batch_size = 4
+        self.batch_size = batch_size
         self.channels = 3
         self.image_size = 256
 
         # diffusion constants
-        self.timesteps = 10000
+        self.timesteps = timesteps
         self.betas = self.get_beta_schedule(timesteps=self.timesteps)
         self.alphas = 1. - self.betas
         self.alphas_cumprod = torch.cumprod(self.alphas, axis=0)
@@ -67,8 +72,7 @@ class Diffusion:
         sqrt_one_minus_alphas_cumprod_t = self._extract(self.sqrt_one_minus_alphas_cumprod, t, x_0.shape)
 
         # (x_t, noise)
-        return sqrt_alphas_cumprod_t.to(self.device) * x_0.to(self.device) \
-        + sqrt_one_minus_alphas_cumprod_t.to(self.device) * noise.to(self.device), noise.to(self.device)
+        return sqrt_alphas_cumprod_t * x_0 + sqrt_one_minus_alphas_cumprod_t.to(self.device) * noise, noise
     
     def p_losses(self, x_0, t, loss_type="l2"):
         """
@@ -101,9 +105,9 @@ class Diffusion:
             return model_mean + torch.sqrt(posterior_variance_t) * noise
 
     @torch.no_grad()
-    def p_sample_loop(self):
+    def p_sample_loop(self, shape):
         # start from x_T aka pure noise
-        img = torch.randn(self.batch_size, device=self.device)
+        img = torch.randn(self.batch_size, self.channels, self.image_size, self.image_size, device=self.device)
         imgs = []
 
         for i in tqdm(reversed(range(0, self.timesteps)), desc="sampling loop time step", total=self.timesteps):
